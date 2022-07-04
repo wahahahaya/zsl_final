@@ -56,10 +56,11 @@ def eval(
     bias = torch.cat([bias_s, bias_u], dim=1)
 
     att = torch.cat((att_seen, att_unseen), dim=0)
-    acc_gzsl_unseen = cal_accuracy(model=model, dataloadr=tu_loader, att=att,
-                                   test_id=train_test_id, device=device, bias=bias)
     acc_gzsl_seen = cal_accuracy(model=model, dataloadr=ts_loader, att=att,
                                    test_id=train_test_id, device=device,bias=bias)
+    acc_gzsl_unseen = cal_accuracy(model=model, dataloadr=tu_loader, att=att,
+                                   test_id=train_test_id, device=device, bias=bias)
+
     H = 2 * acc_gzsl_seen * acc_gzsl_unseen / (acc_gzsl_seen + acc_gzsl_unseen)
 
     return acc_zsl, acc_gzsl_unseen, acc_gzsl_seen, H

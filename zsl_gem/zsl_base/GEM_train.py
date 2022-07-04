@@ -115,8 +115,8 @@ def do_train(
 
             loss_dict.pop('scale')
 
-            loss = Lcls + lamd[1]*Lreg + lamd[2]*Lad + lamd[3]*Lcpt
-            # loss = Lreg
+            # loss = Lcls + lamd[1]*Lreg + lamd[2]*Lad + lamd[3]*Lcpt
+            loss = Lcls + lamd[1]*Lreg + lamd[2]*Lad
 
             optimizer.zero_grad()
             loss.backward()

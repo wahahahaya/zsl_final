@@ -126,7 +126,6 @@ class GEMNet(nn.Module):
         return x
 
     def base_module(self, x, seen_att):
-
         N, C, W, H = x.shape
         global_feat = F.avg_pool2d(x, kernel_size=(W, H))
         global_feat = global_feat.view(N, C)

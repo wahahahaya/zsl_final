@@ -3,6 +3,7 @@ import build
 import random
 import GEM_model
 import GEM_train
+import numpy as np
 
 
 def make_optimizer(model):
@@ -66,9 +67,10 @@ def main():
     manualSeed = 2022
     print("Random Seed: ", manualSeed)
     random.seed(manualSeed)
+    np.random.seed(manualSeed)
     torch.manual_seed(manualSeed)
     torch.cuda.manual_seed_all(manualSeed)
-    model = train_model()
+    train_model()
 
 
 if __name__ == '__main__':

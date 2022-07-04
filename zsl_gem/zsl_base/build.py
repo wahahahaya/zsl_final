@@ -138,21 +138,22 @@ def build_dataloader(is_distributed=False):
     }
 
     # train dataloader
-    data_aug_train = "resize_random_crop"
+    data_aug_train = "resize_only"
     img_size = 224
     transforms = data_transform(data_aug_train, size=img_size)
     batch = 64
 
     dataset = RandDataset(train_img, train_att, train_label, transforms)
-    sampler = torch.utils.data.sampler.RandomSampler(dataset)
+    sampler = torch.utils.data.sampler.SequentialSampler(dataset)
     batch_sampler = torch.utils.data.sampler.BatchSampler(sampler, batch_size=batch, drop_last=True)
     tr_dataloader = torch.utils.data.DataLoader(
         dataset=dataset,
         num_workers=8,
+        shuffle=False,
         batch_sampler=batch_sampler,
     )
 
-    data_aug_test = "resize_crop"
+    data_aug_test = "resize_only"
     transforms = data_transform(data_aug_test, size=img_size)
     test_batch_size = 100
 

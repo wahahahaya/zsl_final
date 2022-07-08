@@ -1,125 +1,157 @@
-import torch
-import random
-import model
-import data
-import classifier
+from datetime import datetime
+import os
 import numpy as np
-import inferencer
-from numpy import genfromtxt
+import random
+import torch
+import torch.nn as nn
+import torch.distributed as dist
+from os.path import join
+import pickle
+from apex import amp
+
+import parameter
+import build_data
+import build_model
+from build_loss import cpt_loss, ad_loss
 from resnet_feature import resnet101_features
-from sklearn.metrics import accuracy_score
+from classifier import eval_gzsl
+from utils import write_json, make_optimizer, make_lr_scheduler
 
 
-lamd = {
-    1: 1.0,
-    2: 0.05,
-    3: 0.2,
-}
-
-device = "cuda" if torch.cuda.is_available() else "cpu"
-
-manualSeed = 2022
-print("Random Seed: ", manualSeed)
-random.seed(manualSeed)
-torch.manual_seed(manualSeed)
-torch.cuda.manual_seed_all(manualSeed)
-
-data_loader = data.DATA_LOADER("CUB")
-
-train_loader = data_loader.train_loader
-seen_loader = data_loader.seen_loader
-unseen_loader = data_loader.unseen_loader
-
-att_seen = data_loader.attribute_seen.to(device)
-att_unseen = data_loader.attribute_unseen.to(device)
-at_map = torch.cat((att_seen, att_unseen), dim=0).to(device)
-train_id = data_loader.train_id
-train_text_id = data_loader.train_test_id
-
-data_set_path = '../dataset/'
-glove_path = data_set_path + "glove_embedding.csv"
-w2v = genfromtxt(glove_path, delimiter=',', skip_header=0)
-w2v = torch.from_numpy(w2v).float().to(device)
-
-res101 = resnet101_features(pretrained=True).to(device)
-
-net = model.DSACAN(res101, w2v).to(device)
-opt = torch.optim.Adam(net.parameters(), lr=1e-3)
-
-loss_reg = torch.nn.MSELoss()
-loss_cls = torch.nn.CrossEntropyLoss()
+def synchronize():
+    """
+    Helper function to synchronize (barrier) among all processes when
+    using distributed training
+    """
+    if not dist.is_available():
+        return
+    if not dist.is_initialized():
+        return
+    world_size = dist.get_world_size()
+    if world_size == 1:
+        return
+    dist.barrier()
 
 
-def cal_acc(loader, net, see_attri, test_id, bias=None):
-    scores = []
-    labels = []
-    for iteration, (feature, att, label) in enumerate(loader):
-        feature = feature.to(device)
+def main(config):
+    device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        pred_att, pred_class = net(feature, see_attri)
-        scores.append(pred_class)
-        labels.append(label)
+    seed = 214
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    random.seed(seed)
 
-    scores = torch.cat(scores, dim=0)
-    labels = torch.cat(labels, dim=0)
+    train_dataloader, test_seen_dataloader, test_unseen_dataloader, res = build_data.build_dataloader(config)
+    att_seen = res['att_seen'].to(device)
+    res101 = resnet101_features(pretrained=True)
 
-    if bias is not None:
-        scores = scores-bias
+    w2v_file = config.dataset_name+"_attribute.pkl"
+    w2v_path = join("/HDD-1_data/arlen/zsl_final/datasets/Attribute/w2v/", w2v_file)
+    with open(w2v_path, 'rb') as f:
+        w2v = pickle.load(f)
+    w2v = torch.from_numpy(w2v).float().to(device)
+    model = build_model.DSACA_Net(res101, w2v).to(device)
 
-    _, pred = scores.max(dim=1)
-    pred = pred.view(-1).cpu()
+    optimizer = make_optimizer(config, model)
+    scheduler = make_lr_scheduler(config, optimizer)
 
-    outpred = test_id[pred]
-    outpred = np.array(outpred, dtype='int')
-    labels = labels.numpy()
-    unique_labels = np.unique(labels)
-    acc = 0
-    for l in unique_labels:
-        idx = np.nonzero(labels == l)[0]
-        acc += accuracy_score(labels[idx], outpred[idx])
-    acc = acc / unique_labels.shape[0]
-    return acc
+    use_mixed_precision = config.dtype == "float16"
+    amp_opt_level = 'O1' if use_mixed_precision else 'O0'
+    model, optimizer = amp.initialize(model, optimizer, opt_level=amp_opt_level)
+
+    loss_cls = nn.CrossEntropyLoss().to(device)
+    loss_ad = ad_loss(config.dataset_name).to(device)
+    loss_cpt = cpt_loss(device).to(device)
+    loss_reg = nn.MSELoss().to(device)
+
+    losses = []
+    cls_losses = []
+    reg_losses = []
+    ad_losses = []
+    cpt_losses = []
+    best_H = 0
+    for epoch in range(0, config.epochs):
+        loss_epoch = []
+        cls_loss_epoch = []
+        reg_loss_epoch = []
+        ad_loss_epoch = []
+        cpt_loss_epoch = []
+
+        scheduler.step()
+        for i, (img, att, label) in enumerate(train_dataloader):
+            batch_img = img.to(device)
+            batch_att = att.to(device)
+            batch_label = label.to(device)
+
+            score, part_feat, atten_map, atten_attr, query = model(batch_img, seen_att=att_seen, mode="train")
+
+            Lcls = loss_cls(score, batch_label)
+            Lreg = loss_reg(atten_attr, batch_att)
+            Lad = loss_ad(query)
+            Lcpt = loss_cpt(atten_map)
+
+            loss = Lcls + Lreg + Lad + Lcpt
+
+            optimizer.zero_grad()
+            with amp.scale_loss(loss, optimizer) as scaled_losses:
+                scaled_losses.backward()
+            optimizer.step()
+
+            loss_epoch.append(loss.item())
+            cls_loss_epoch.append(Lcls.item())
+            reg_loss_epoch.append(Lreg.item())
+            ad_loss_epoch.append(Lad.item())
+            cpt_loss_epoch.append(Lcpt.item())
+
+        losses += loss_epoch
+        cls_losses += cls_loss_epoch
+        reg_losses += reg_loss_epoch
+        ad_losses += ad_loss_epoch
+        cpt_losses += cpt_loss_epoch
+
+        losses_mean = sum(losses) / len(losses)
+        cls_losses_mean = sum(cls_losses) / len(cls_losses)
+        reg_losses_mean = sum(reg_losses) / len(reg_losses)
+        ad_losses_mean = sum(ad_losses) / len(ad_losses)
+        cpt_losses_mean = sum(cpt_losses) / len(cpt_losses)
+
+        print("Epoch: %d/%d, cls loss:%.4f, reg loss:%.4f, ad loss:%.4f, cpt loss:%.4f, loss:%.4f" % (
+                epoch+1, config.epochs, cls_losses_mean, reg_losses_mean, ad_losses_mean, cpt_losses_mean, losses_mean
+            )
+        )
+
+        synchronize()
+        acc_train, acc_seen, acc_unseen, H = eval_gzsl(
+            train_dataloader,
+            test_seen_dataloader,
+            test_unseen_dataloader,
+            res,
+            model,
+            config.test_gamma,
+            device
+        )
+        synchronize()
+
+        print('train: %.4f, gzsl: seen=%.4f, unseen=%.4f, h=%.4f' % (acc_train, acc_seen, acc_unseen, H))
+
+        if H > best_H:
+            best_epoch = epoch+1
+            best_acc_train = acc_train
+            best_acc_seen = acc_seen
+            best_acc_unseen = acc_unseen
+            best_H = H
+
+    print("best: ep: %d" % best_epoch)
+    print('train: %.4f, gzsl: seen=%.4f, unseen=%.4f, h=%.4f' % (best_acc_train, best_acc_seen, best_acc_unseen, best_H))
 
 
-losses = []
-best_gzsl_acc = 0
-for epoch in range(0, 50):
-    loss_epoch = []
-    for iteration, (batch_img, batch_att, batch_label) in enumerate(train_loader):
-        batch_img = batch_img.to(device)
-        batch_att = batch_att.to(device)
-        batch_label = batch_label.to(device)
-
-        pred_attri, pred_class = net(batch_img, att_seen)
-        loss_ce = loss_cls(pred_class, batch_label)
-        loss_mse = loss_reg(pred_attri, batch_att)
-        loss = loss_ce + loss_mse
-
-        opt.zero_grad()
-        loss.backward()
-        opt.step()
-
-        loss_epoch.append(loss.item())
-
-    losses += loss_epoch
-    losses_mean = sum(losses) / len(losses)
-
-    log_info = 'epoch: %d | loss: %.4f, loss cls: %.4f, loss reg: %.4f lr: %.6f' % \
-               (epoch + 1, losses_mean, loss_ce.item(), loss_mse.item(), opt.param_groups[0]["lr"])
-    print(log_info)
-
-    with torch.no_grad():
-        bias_s = torch.zeros((1, 150)).fill_(0.7).to(device)
-        bias_u = torch.zeros((1, 50)).to(device)
-        bias = torch.cat([bias_s, bias_u], dim=1)
-
-        train_acc = cal_acc(train_loader, net, att_seen, train_id, bias=None)
-        acc_seen = cal_acc(seen_loader, net, at_map, train_text_id, bias=bias)
-        acc_unseen = cal_acc(unseen_loader, net, at_map, train_text_id, bias=bias)
-    H = 2 * acc_seen * acc_unseen / (acc_seen + acc_unseen)
-    if best_gzsl_acc < H:
-        best_acc_seen, best_acc_unseen, best_gzsl_acc = acc_seen, acc_unseen, H
-    print('trian acc: %.4f, gzsl: seen=%.4f, unseen=%.4f, h=%.4f' % (train_acc, acc_seen, acc_unseen, H))
-print('the best GZSL seen accuracy is %.4f' % best_acc_seen)
-print('the best GZSL unseen accuracy is %.4f' % best_acc_unseen)
-print('the best GZSL H is %.4f' % best_gzsl_acc)
+if __name__ == "__main__":
+    config = parameter.get_parameters()
+    log = config.__dict__
+    time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    log.update({'time': time})
+    if not os.path.isdir(config.tensorboard_dir):
+        os.mkdir(config.tensorboard_dir)
+    write_json(log, os.path.join(config.tensorboard_dir+"/config.json"))
+    main(config)

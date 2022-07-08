@@ -1,96 +1,104 @@
 import torch
-import torch.nn as nn
-import torch.optim as optim
 import numpy as np
 from sklearn.metrics import accuracy_score
-from zmq import device
 
 
-class CLASSIFIER:
-    def __init__(self, in_dim, nclass, synth_loader, train_loader, seen_loader, unseen_loader, device):
-        self.device = device
-        self.nepoch = 20
-        self.in_dim = in_dim
-        self.nclass = nclass
-        self.synloader = synth_loader
-        self.trloader = train_loader
-        self.seenloader = seen_loader
-        self.unseenloader = unseen_loader
+def cal_accuracy(model, dataloader, att, test_id, device, bias=None):
+    scores = []
+    labels = []
+    cpu = torch.device('cpu')
 
-        self.model = LINEAR_LOGSOFTMAX_CLASSIFIER(self.in_dim, self.nclass)
-        self.criterion = nn.NLLLoss()
-        self.optimizer = optim.Adam(self.model.parameters(), lr=1e-3, betas=(0.5, 0.999))
+    for iteration, (img, attri, label) in enumerate(dataloader):
+        img = img.to(device)
+        score = model(img, seen_att=att, mode="test")
+        scores.append(score)
+        labels.append(label)
 
-        self.model.to(self.device)
-        self.criterion.to(self.device)
+    scores = torch.cat(scores, dim=0)
+    labels = torch.cat(labels, dim=0)
 
-        self.acc_seen, self.acc_unseen, self.H, self.train_acc = self.fit()
+    if bias is not None:
+        scores = scores-bias
 
-    def fit(self):
-        best_H = 0
-        best_seen = 0
-        best_unseen = 0
-        best_train = 0
-        for epoch in range(self.nepoch):
-            for iteration, (feature, label) in enumerate(self.synloader):
-                self.model.zero_grad()
-                feature = feature.to(self.device)
-                label = label.to(self.device)
+    _,pred = scores.max(dim=1)
+    pred = pred.view(-1).to(cpu)
 
-                pred = self.model(feature)
-                loss = self.criterion(pred, label)
-                loss.backward()
-                self.optimizer.step()
-
-            acc_seen = 0
-            acc_unseen = 0
-            acc_train = 0
-            with torch.no_grad():
-                acc_seen = self.cal_acc(self.seenloader)
-                acc_unseen = self.cal_acc(self.unseenloader)
-                acc_train = self.cal_acc(self.trloader)
-            H = 2*acc_seen*acc_unseen / (acc_seen+acc_unseen)
-
-        if H > best_H:
-            best_seen = acc_seen
-            best_unseen = acc_unseen
-            best_H = H
-            best_train = acc_train
-        return best_seen, best_unseen, best_H, best_train
-
-    def cal_acc(self, loader):
-        scores = []
-        labels = []
-        for iteration, (feature, label) in enumerate(loader):
-            feature = feature.to(device)
-            label = label.to(device)
-
-            pred_class = self.model(feature)
-            scores.append(pred_class)
-            labels.append(label)
-
-        scores = torch.cat(scores, dim=0)
-        labels = torch.cat(labels, dim=0)
-        _, pred = scores.max(dim=1)
-        outpred = pred.cpu().numpy()
-        labels = labels.cpu().numpy()
-        unique_labels = np.unique(labels)
-
-        acc = 0
-        for i in unique_labels:
-            idx = np.nonzero(labels == i)[0]
-            acc += accuracy_score(labels[idx], outpred[idx])
-        acc = acc / unique_labels.shape[0]
-
-        return acc
+    outpred = test_id[pred]
+    outpred = np.array(outpred, dtype='int')
+    labels = labels.numpy()
+    unique_labels = np.unique(labels)
+    acc = 0
+    for ll in unique_labels:
+        idx = np.nonzero(labels == ll)[0]
+        acc += accuracy_score(labels[idx], outpred[idx])
+    acc = acc / unique_labels.shape[0]
+    return acc
 
 
-class LINEAR_LOGSOFTMAX_CLASSIFIER(nn.Module):
-    def __init__(self, input_dim, nclass):
-        super(LINEAR_LOGSOFTMAX_CLASSIFIER, self).__init__()
-        self.fc = nn.Linear(input_dim, nclass)
-        self.logic = nn.LogSoftmax(dim=1)
+def eval(
+    train_loader,
+    seen_loader,
+    unseen_loader,
+    att_seen,
+    att_unseen,
+    cls_seen_num,
+    cls_unseen_num,
+    train_id,
+    gzsl_id,
+    model,
+    test_gamma,
+    device
+):
+    acc_train = cal_accuracy(model=model, dataloader=train_loader, att=att_seen, test_id=train_id, device=device, bias=None)
 
-    def forward(self, x):
-        o = self.logic(self.fc(x))
-        return o
+    bias_s = torch.zeros((1, cls_seen_num)).fill_(test_gamma).to(device)
+    bias_u = torch.zeros((1, cls_unseen_num)).to(device)
+    bias = torch.cat([bias_s, bias_u], dim=1)
+
+    att = torch.cat((att_seen, att_unseen), dim=0)
+    acc_seen = cal_accuracy(model=model, dataloader=seen_loader, att=att, test_id=gzsl_id, device=device, bias=bias)
+    acc_unseen = cal_accuracy(model=model, dataloader=unseen_loader, att=att, test_id=gzsl_id, device=device, bias=bias)
+
+    H = 2 * acc_seen * acc_unseen / (acc_seen + acc_unseen)
+
+    return acc_train, acc_seen, acc_unseen, H
+
+
+def eval_gzsl(
+    train_loader,
+    seen_loader,
+    unseen_loader,
+    res,
+    model,
+    test_gamma,
+    device
+):
+    model.eval()
+    att_unseen = res['att_unseen'].to(device)
+    att_seen = res['att_seen'].to(device)
+
+    train_id = res['train_id']
+    gzsl_id = res['train_test_id']
+
+    cls_seen_num = att_seen.shape[0]
+    cls_unseen_num = att_unseen.shape[0]
+
+    with torch.no_grad():
+        acc_train, acc_seen, acc_unseen, H = eval(
+            train_loader,
+            seen_loader,
+            unseen_loader,
+            att_seen,
+            att_unseen,
+            cls_seen_num,
+            cls_unseen_num,
+            train_id,
+            gzsl_id,
+            model,
+            test_gamma,
+            device
+        )
+
+    model.train()
+
+    return acc_train, acc_seen, acc_unseen, H

@@ -8,9 +8,11 @@ class DSACA_Net(nn.Module):
         super(DSACA_Net, self).__init__()
 
         self.w2v_att = w2v
-        attritube_num = self.w2v_att.shape[0]
+        self.attritube_num = self.w2v_att.shape[0]
+        self.attribute_embed = self.w2v_att.shape[1]
         self.backbone = res101
-        self.V = nn.Parameter(nn.init.normal_(torch.empty(2048, attritube_num)), requires_grad=True)
+        self.V = nn.Parameter(nn.init.normal_(torch.empty(2048, self.attritube_num)), requires_grad=True)
+        self.LinearV = nn.Linear(2048, 200)
 
         if scale <= 0:
             self.scale = nn.Parameter(torch.ones(1) * 20.0)
@@ -25,22 +27,22 @@ class DSACA_Net(nn.Module):
         self.gamma_img = nn.Parameter(torch.zeros(1))
 
         # text attention
-        self.query_W = nn.Linear(300, 256)
-        self.key_W = nn.Linear(300, 256)
-        self.value_W = nn.Linear(300, 300)
+        self.query_W = nn.Linear(self.attribute_embed, 256)
+        self.key_W = nn.Linear(self.attribute_embed, 256)
+        self.value_W = nn.Linear(self.attribute_embed, self.attribute_embed)
         self.gamma_text = nn.Parameter(torch.zeros(1))
 
         # co-attention
         self.img2L = nn.Conv2d(2048, 256, kernel_size=(1, 1))
-        self.text2L = nn.Linear(300, 256)
+        self.text2L = nn.Linear(self.attribute_embed, 256)
         self.relu = nn.ReLU()
-        self.UU = nn.Parameter(nn.init.normal_(torch.empty(256, 312)), requires_grad=True)
+        self.UU = nn.Parameter(nn.init.normal_(torch.empty(256, self.attritube_num)), requires_grad=True)
         self.VV = nn.Parameter(nn.init.normal_(torch.empty(256, 196)), requires_grad=True)
-        self.atten2attri = nn.Linear(312, 312)
+        self.atten2attri = nn.Linear(self.attritube_num, self.attritube_num)
 
         # util
         self.softmax = nn.Softmax(dim=-1)
-        self.feat2attri = nn.Parameter(nn.init.normal_(torch.empty(2048, 312)), requires_grad=True)
+        self.feat2attri = nn.Parameter(nn.init.normal_(torch.empty(2048, self.attritube_num)), requires_grad=True)
 
     def conv_features(self, x):
         '''
@@ -50,10 +52,7 @@ class DSACA_Net(nn.Module):
         return x
 
     def base_module(self, x, seen_att):
-        N, C, W, H = x.shape
-        global_feat = F.avg_pool2d(x, kernel_size=(W, H))
-        global_feat = global_feat.view(N, C)
-        gs_feat = torch.einsum('bc,cd->bd', global_feat, self.V)
+        gs_feat = x@self.V
 
         gs_feat_norm = torch.norm(gs_feat, p=2, dim=1).unsqueeze(1).expand_as(gs_feat)
         gs_feat_normalized = gs_feat.div(gs_feat_norm + 1e-5)
@@ -61,8 +60,9 @@ class DSACA_Net(nn.Module):
         temp_norm = torch.norm(seen_att, p=2, dim=1).unsqueeze(1).expand_as(seen_att)
         seen_att_normalized = seen_att.div(temp_norm + 1e-5)
 
-        cos_dist = torch.einsum('bd,nd->bn', gs_feat_normalized, seen_att_normalized)
+        cos_dist = gs_feat_normalized @ seen_att_normalized.T
         score = cos_dist * self.scale
+        # score = self.LinearV(global_feat)
 
         return score
 
@@ -94,10 +94,10 @@ class DSACA_Net(nn.Module):
 
         mfb_R = torch.einsum("tl,bln->btn", self.UU.T, img_L)  # [B, 312, 196]
         mfb_Q = self.VV.T@text_L  # [196, 312]
-        mfb_F = (mfb_R*mfb_Q.T)  # [B, 312, 14, 14]
-        atten_map = F.softmax(mfb_F, -1).view(B, 312, W, H)
+        mfb_F = (mfb_R*mfb_Q.T)  # [B, 312, 196]
+        atten_map = F.softmax(mfb_F, -1).view(B, self.attritube_num, W, H)  # [B, 312, 14, 14]
 
-        attention = F.avg_pool2d(atten_map, kernel_size=(W, H)).view(B, -1)  # [B, 312]
+        attention = F.avg_pool2d(mfb_F.view(B, self.attritube_num, W, H), kernel_size=(W, H)).view(B, -1)  # [B, 312]
         atten_attr = self.atten2attri(attention)
 
         query = text_attention
@@ -108,13 +108,107 @@ class DSACA_Net(nn.Module):
     def forward(self, x, seen_att=None, mode="train"):
 
         feat = self.conv_features(x)  # [B, 2048, 14, 14]
+        N, C, W, H = feat.shape
+        global_feat = F.avg_pool2d(feat, kernel_size=(W, H))
+        global_feat = global_feat.view(N, C)
+        if mode == "gan":
+            return global_feat
 
-        score = self.base_module(feat, seen_att)  # [B, att_size]
+        score = self.base_module(global_feat, seen_att)  # [B, att_size]
         if mode == "test":
             return score
+
         part_feat, atten_map, atten_attr, query = self.DSACA(feat)
 
-        return score, part_feat, atten_map, atten_attr, query
+        return score, global_feat, part_feat, atten_map, atten_attr, query
 
 
+def weights_init(m):
+    classname = m.__class__.__name__
+    if classname.find('Linear') != -1:
+        m.weight.data.normal_(0.0, 0.02)
+        m.bias.data.fill_(0)
+    elif classname.find('BatchNorm') != -1:
+        m.weight.data.normal_(1.0, 0.02)
+        m.bias.data.fill_(0)
 
+
+class Generator(nn.Module):
+    def __init__(self):
+        super(Generator, self).__init__()
+
+        self.fc1 = nn.Linear(1024+312, 4096)
+        self.fc2 = nn.Linear(4096, 2048)
+        self.lrelu = nn.LeakyReLU(0.2, True)
+        self.relu = nn.ReLU(True)
+
+        self.apply(weights_init)
+
+    def forward(self, noise, attri):
+        h = torch.cat((noise, attri), 1)
+        h = self.lrelu(self.fc1(h))
+        h = self.relu(self.fc2(h))
+        return h
+
+
+class Discriminator(nn.Module):
+    def __init__(self):
+        super(Discriminator, self).__init__()
+
+        self.fc1 = nn.Linear(2048+312, 4096)
+        self.fc2 = nn.Linear(4096, 1)
+        self.lrelu = nn.LeakyReLU(0.2, True)
+
+        self.apply(weights_init)
+
+    def forward(self, x, attri):
+        h = torch.cat((x, attri), 1)
+        h = self.lrelu(self.fc1(h))
+        h = self.fc2(h)
+        return h
+
+
+class Embedding(nn.Module):
+    def __init__(self):
+        super(Embedding, self).__init__()
+
+        self.fc1 = nn.Linear(2048, 2048)
+        self.fc2 = nn.Linear(2048, 512)
+        self.relu = nn.ReLU(True)
+
+        self.apply(weights_init)
+
+    def forward(self, feature):
+        embedding = self.relu(self.fc1(feature))
+        out_z = F.normalize(self.fc2(embedding), dim=1)
+        return embedding, out_z
+
+
+class Embed_Clr(nn.Module):
+    def __init__(self):
+        super(Embed_Clr, self).__init__()
+
+        self.fc1 = nn.Linear(2048+312, 2048)
+        self.fc2 = nn.Linear(2048, 1)
+        self.lrelu = nn.LeakyReLU(0.2, True)
+
+        self.apply(weights_init)
+
+    def forward(self, embed):
+        h = self.lrelu(self.fc1(embed))
+        h = self.fc2(h)
+        return h
+
+
+class classifier(nn.Module):
+    def __init__(self, input_dim, nclass):
+        super(classifier, self).__init__()
+        self.fc1 = nn.Linear(input_dim, 200)
+
+        self.logic = nn.LogSoftmax(dim=1)
+
+    def forward(self, x):
+        x = self.fc1(x)
+        out = self.logic(x)
+
+        return out

@@ -8,10 +8,12 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 import torch.utils.data as data
 
+from utils import seed_worker
+
 
 class ImgDatasetParam(object):
     DATASETS = {
-        "imgroot": "../dataset",
+        "imgroot": "/HDD-1_data/arlen/dataset",
         "dataroot": "datasets/Data",
         "image_embedding": "res101",
         "class_embedding": "att"
@@ -20,7 +22,7 @@ class ImgDatasetParam(object):
     @staticmethod
     def get(dataset):
         attrs = ImgDatasetParam.DATASETS
-        attrs["imgroot"] = join(attrs["imgroot"], dataset)
+        # attrs["imgroot"] = join(attrs["imgroot"], dataset)
         args = dict(
             dataset=dataset
         )
@@ -110,8 +112,7 @@ class ZSLDataset(data.Dataset):
     def __init__(self, img_path, atts, labels, transforms=None):
         self.img_path = img_path
         self.atts = torch.tensor(atts).float()
-        self.labels = torch.tensor(labels).long()
-        self.classes = np.unique(labels)
+        self.labels = labels.long()
 
         self.transforms = transforms
 
@@ -144,11 +145,11 @@ def build_dataloader(config):
     for img_file in img_files:
         img_path = img_file[0]
         if dataset == "CUB":
-            img_path = join(imgroot, '/'.join(img_path.split('/')[6:]))
+            img_path = join(imgroot+'/CUB', '/'.join(img_path.split('/')[6:]))
         elif dataset == "AWA2":
-            img_path = join(imgroot, '/'.join(img_path.split('/')[5:]))
+            img_path = join(imgroot+'/AWA2', '/'.join(img_path.split('/')[5:]))
         elif dataset == "SUN":
-            img_path = join(imgroot, '/'.join(img_path.split('/')[7:]))
+            img_path = join(imgroot+'/SUN', '/'.join(img_path.split('/')[7:]))
         new_img_files.append(img_path)
 
     new_img_files = np.array(new_img_files)
@@ -224,7 +225,7 @@ def build_dataloader(config):
     n_batch = config.n_batch
     train_dataset = ZSLDataset(train_img, train_att, train_label, train_transforms)
     sampler = CategoriesSampler(train_label, n_batch, ways, shots)
-    train_dataloader = DataLoader(dataset=train_dataset, batch_sampler=sampler, num_workers=23, pin_memory=True)
+    train_dataloader = DataLoader(dataset=train_dataset, batch_sampler=sampler, num_workers=23, pin_memory=True, worker_init_fn=seed_worker)
 
     test_transforms = data_transform(test_aug, size=img_size)
     test_batch = config.test_batch
@@ -234,7 +235,8 @@ def build_dataloader(config):
         batch_size=test_batch,
         shuffle=False,
         num_workers=23,
-        pin_memory=False
+        pin_memory=False,
+        worker_init_fn=seed_worker
     )
 
     test_seen_dataset = ZSLDataset(test_img_seen, seen_att, test_label_seen, test_transforms)
@@ -243,7 +245,8 @@ def build_dataloader(config):
         batch_size=test_batch,
         shuffle=False,
         num_workers=23,
-        pin_memory=False
+        pin_memory=False,
+        worker_init_fn=seed_worker
     )
 
     return train_dataloader, test_seen_dataloader, test_unseen_dataloader, res

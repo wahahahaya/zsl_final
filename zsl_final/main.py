@@ -89,8 +89,8 @@ def main(config):
             Lreg = loss_reg(atten_attr, batch_att)
             Lcpt = loss_cpt(atten_map)
 
-            # loss = Lcls + config.lamd1*Lreg + config.lamd3*Lcpt
-            loss = Lcls
+            loss = Lcls + config.lamd1*Lreg + config.lamd3*Lcpt
+            # loss = Lcls
 
             optimizer.zero_grad()
             with amp.scale_loss(loss, optimizer) as scaled_losses:

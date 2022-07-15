@@ -100,7 +100,7 @@ class DSACA_Net(nn.Module):
         attention = F.avg_pool2d(mfb_F.view(B, self.attritube_num, W, H), kernel_size=(W, H)).view(B, -1)  # [B, 312]
         atten_attr = self.atten2attri(attention)
 
-        query = text_attention
+        query = img_attention
         part_feat = mfb_F
 
         return part_feat, atten_map, atten_attr, query

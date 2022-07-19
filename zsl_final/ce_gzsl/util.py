@@ -61,17 +61,13 @@ class Logger(object):
 
 class DATA_LOADER(object):
     def __init__(self, opt):
-        if opt.matdataset:
-            if opt.dataset == 'imagenet':
-                self.read_matimagenet(opt)
-            else:
-                self.read_matdataset(opt)
+        self.read_matdataset(opt)
         self.index_in_epoch = 0
         self.epochs_completed = 0
 
     def read_matdataset(self, opt):
         matcontent = sio.loadmat(
-            "/HDD-1_data/arlen/zsl_final/new_data/AWA2_feat.mat")
+            "/HDD-1_data/arlen/zsl_final/new_data/" + opt.dataset + "_feat.mat")
         feature = matcontent['features']
         matcontent = sio.loadmat(
             opt.dataroot + "/" + opt.dataset + "/" + opt.image_embedding + ".mat")

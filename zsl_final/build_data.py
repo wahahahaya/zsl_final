@@ -109,10 +109,11 @@ class CategoriesSampler():
 
 
 class ZSLDataset(data.Dataset):
-    def __init__(self, img_path, atts, labels, transforms=None):
+    def __init__(self, img_path, atts, labels, feature, transforms=None):
         self.img_path = img_path
         self.atts = torch.tensor(atts).float()
         self.labels = labels.long()
+        self.feature = torch.tensor(feature).float()
 
         self.transforms = transforms
 
@@ -124,8 +125,9 @@ class ZSLDataset(data.Dataset):
 
         label = self.labels[index]
         att = self.atts[index]
+        feat = self.feature[index]
 
-        return img, att, label
+        return img, att, label, feat
 
     def __len__(self):
         return self.labels.size(0)
@@ -156,6 +158,9 @@ def build_dataloader(config):
     # ex. 1~50 --> 0~49
     label = img_mat['labels'].astype(int).squeeze() - 1
 
+    feat_mat = io.loadmat("/HDD-1_data/arlen/zsl_final/new_data/" + dataset + "_feat.mat")
+    feature = feat_mat['features']
+
     att_mat = io.loadmat(dataroot + "/" + dataset + "/" + class_embedding + "_splits.mat")
     trainvalloc = att_mat['trainval_loc'].squeeze() - 1
     test_seen_loc = att_mat['test_seen_loc'].squeeze() - 1
@@ -165,6 +170,7 @@ def build_dataloader(config):
 
     # training set
     train_img = new_img_files[trainvalloc]
+    train_feature = feature[trainvalloc]
     train_label = label[trainvalloc]
     train_att = attribute[train_label]
 
@@ -178,6 +184,7 @@ def build_dataloader(config):
 
     # testing unseen set
     test_img_unseen = new_img_files[test_unseen_loc]
+    test_feature_unseen = feature[test_unseen_loc]
     test_label_unseen = label[test_unseen_loc].astype(int)
     unseen_att = attribute[test_label_unseen]
     test_id, idx = np.unique(test_label_unseen, return_inverse=True)
@@ -190,6 +197,7 @@ def build_dataloader(config):
     train_test_id = np.concatenate((train_id, test_id))
 
     test_img_seen = new_img_files[test_seen_loc]
+    test_feature_seen = feature[test_seen_loc]
     test_label_seen = label[test_seen_loc].astype(int)
     seen_att = attribute[test_label_seen]
     _, idx = np.unique(test_label_seen, return_inverse=True)
@@ -223,13 +231,19 @@ def build_dataloader(config):
 
     train_transforms = data_transform(train_aug, size=img_size)
     n_batch = config.n_batch
-    train_dataset = ZSLDataset(train_img, train_att, train_label, train_transforms)
-    sampler = CategoriesSampler(train_label, n_batch, ways, shots)
-    train_dataloader = DataLoader(dataset=train_dataset, batch_sampler=sampler, num_workers=23, pin_memory=True, worker_init_fn=seed_worker)
+    train_dataset = ZSLDataset(train_img, train_att, train_label, train_feature, train_transforms)
+    if config.train_mode == "random":
+        sampler = torch.utils.data.sampler.RandomSampler(train_dataset)
+        batch = ways*shots
+        batch_sampler = torch.utils.data.sampler.BatchSampler(sampler, batch_size=batch, drop_last=True)
+        train_dataloader = DataLoader(dataset=train_dataset, num_workers=23, batch_sampler=batch_sampler)
+    elif config.train_mode == "episode":
+        sampler = CategoriesSampler(train_label, n_batch, ways, shots)
+        train_dataloader = DataLoader(dataset=train_dataset, batch_sampler=sampler, num_workers=23, pin_memory=True, worker_init_fn=seed_worker)
 
     test_transforms = data_transform(test_aug, size=img_size)
     test_batch = config.test_batch
-    test_unseen_dataset = ZSLDataset(test_img_unseen, unseen_att, test_label_unseen, test_transforms)
+    test_unseen_dataset = ZSLDataset(test_img_unseen, unseen_att, test_label_unseen, test_feature_unseen, test_transforms)
     test_unseen_dataloader = DataLoader(
         test_unseen_dataset,
         batch_size=test_batch,
@@ -239,7 +253,7 @@ def build_dataloader(config):
         worker_init_fn=seed_worker
     )
 
-    test_seen_dataset = ZSLDataset(test_img_seen, seen_att, test_label_seen, test_transforms)
+    test_seen_dataset = ZSLDataset(test_img_seen, seen_att, test_label_seen, test_feature_seen, test_transforms)
     test_seen_dataloader = DataLoader(
         test_seen_dataset,
         batch_size=test_batch,

@@ -105,14 +105,17 @@ class DSACA_Net(nn.Module):
 
         return part_feat, atten_map, atten_attr, query
 
-    def forward(self, x, seen_att=None, mode="train"):
-
+    def forward(self, x, demo_feat=None, seen_att=None, mode="train"):
         feat = self.conv_features(x)  # [B, 2048, 14, 14]
         N, C, W, H = feat.shape
         global_feat = F.avg_pool2d(feat, kernel_size=(W, H))
         global_feat = global_feat.view(N, C)
         if mode == "gan":
             return global_feat
+
+        if mode == "demo":
+            score = self.base_module(demo_feat, seen_att)
+            return score, global_feat
 
         score = self.base_module(global_feat, seen_att)  # [B, att_size]
         if mode == "test":

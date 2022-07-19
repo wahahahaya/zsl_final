@@ -8,9 +8,10 @@ def cal_accuracy(model, dataloader, att, test_id, device, bias=None):
     labels = []
     cpu = torch.device('cpu')
 
-    for iteration, (img, attri, label) in enumerate(dataloader):
+    for iteration, (img, attri, label, feature) in enumerate(dataloader):
         img = img.to(device)
-        score = model(img, seen_att=att, mode="test")
+        feature = feature.to(device)
+        score, global_feat = model(x=img, demo_feat=feature, seen_att=att, mode="demo")
         scores.append(score)
         labels.append(label)
 

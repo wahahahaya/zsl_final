@@ -8,7 +8,7 @@ python CE_GZSL.py --dataset CUB --class_embedding sent --syn_num 100 --batch_siz
 
 AWA2:
 ```
-python CE_GZSL.py --dataset AWA2 --class_embedding att --syn_num 1800 --batch_size 4096 --attSize 85 --nz 85 --embedSize 2048 --outzSize 512 --nhF 2048 --ins_weight 0.001 --cls_weight 0.001 --ins_temp 0.1 --cls_temp 0.1 --manualSeed 9182 --nclass_all 50 --nclass_seen 40
+python CE_GZSL.py --dataset AWA2 --class_embedding att --syn_num 2400 --batch_size 4096 --attSize 85 --nz 85 --embedSize 2048 --outzSize 512 --nhF 2048 --ins_weight 0.001 --cls_weight 0.001 --ins_temp 0.1 --cls_temp 0.1 --manualSeed 9182 --nclass_all 50 --nclass_seen 40 --lr_decay_epoch 10
 ```
 
 SUN:

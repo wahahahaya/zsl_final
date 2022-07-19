@@ -1,4 +1,5 @@
 please download the dataset https://drive.google.com/file/d/1qmMc7u2xMUuAomNRJwvoTR3DMGyO6YOu/view?usp=sharing
+and download the pre-feature from https://drive.google.com/file/d/18zG_BZjW2W9yOKmsvV593ZxXqtU1ox6p/view?usp=sharing
 
 CUB:
 ```

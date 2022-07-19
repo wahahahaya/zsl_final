@@ -1,3 +1,5 @@
+please download the dataset https://drive.google.com/file/d/1qmMc7u2xMUuAomNRJwvoTR3DMGyO6YOu/view?usp=sharing
+
 CUB:
 ```
 python CE_GZSL.py --dataset CUB --class_embedding sent --syn_num 100 --batch_size 2048 --attSize 1024 --nz 1024 --embedSize 2048 --outzSize 512 --nhF 2048 --ins_weight 0.001 --cls_weight 0.001 --ins_temp 0.1 --cls_temp 0.1 --manualSeed 3483 --nclass_all 200 --nclass_seen 150

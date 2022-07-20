@@ -73,6 +73,7 @@ random.seed(opt.manualSeed)
 torch.manual_seed(opt.manualSeed)
 if opt.cuda:
     torch.cuda.manual_seed_all(opt.manualSeed)
+torch.backends.cudnn.deterministic = True
 
 cudnn.benchmark = True
 

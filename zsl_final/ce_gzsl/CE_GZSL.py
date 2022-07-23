@@ -203,140 +203,156 @@ def class_scores_in_matrix(embed, input_label, relation_net):
     cls_loss = -((mask * log_scores).sum(1) / mask.sum(1)).mean()
     return cls_loss
 
+def train():
+    best_acc_seen = 0
+    best_acc_unseen = 0
+    best_gzsl_acc = 0
 
-best_acc_seen = 0
-best_acc_unseen = 0
-best_gzsl_acc = 0
+    for epoch in range(opt.nepoch):
+        FP = 0
+        mean_lossD = 0
+        mean_lossG = 0
+        for i in range(0, data.ntrain, opt.batch_size):
+            ############################
+            # (1) Update D network: optimize WGAN-GP objective, Equation (2)
+            ###########################
+            for p in netD.parameters():  # reset requires_grad
+                p.requires_grad = True  # they are set to False below in netG update
+            for p in netMap.parameters():  # reset requires_grad
+                p.requires_grad = True
+            for p in F_ha.parameters():  # reset requires_grad
+                p.requires_grad = True
 
-for epoch in range(opt.nepoch):
-    FP = 0
-    mean_lossD = 0
-    mean_lossG = 0
-    for i in range(0, data.ntrain, opt.batch_size):
-        ############################
-        # (1) Update D network: optimize WGAN-GP objective, Equation (2)
-        ###########################
-        for p in netD.parameters():  # reset requires_grad
-            p.requires_grad = True  # they are set to False below in netG update
-        for p in netMap.parameters():  # reset requires_grad
-            p.requires_grad = True
-        for p in F_ha.parameters():  # reset requires_grad
-            p.requires_grad = True
+            for iter_d in range(opt.critic_iter):
+                sample()
+                netD.zero_grad()
+                netMap.zero_grad()
+                #
+                # train with realG
+                # sample a mini-batch
+                sparse_real = opt.resSize - input_res[1].gt(0).sum()
+                embed_real, outz_real = netMap(input_res)
+                criticD_real = netD(input_res, input_att)
+                criticD_real = criticD_real.mean()
 
-        for iter_d in range(opt.critic_iter):
-            sample()
-            netD.zero_grad()
-            netMap.zero_grad()
-            #
-            # train with realG
-            # sample a mini-batch
-            sparse_real = opt.resSize - input_res[1].gt(0).sum()
-            embed_real, outz_real = netMap(input_res)
-            criticD_real = netD(input_res, input_att)
-            criticD_real = criticD_real.mean()
+                # CONTRASITVE LOSS
+                real_ins_contras_loss = contras_criterion(outz_real, input_label)
 
-            # CONTRASITVE LOSS
-            real_ins_contras_loss = contras_criterion(outz_real, input_label)
+                # train with fakeG
+                noise_gen.normal_(0, 1)
+                fake = netG(noise_gen, input_att)
+                fake_norm = fake.data[0].norm()
+                sparse_fake = fake.data[0].eq(0).sum()
+                criticD_fake = netD(fake.detach(), input_att)
+                criticD_fake = criticD_fake.mean()
 
-            # train with fakeG
+                # gradient penalty
+                gradient_penalty = calc_gradient_penalty(netD, input_res, fake.data, input_att)
+                Wasserstein_D = criticD_real - criticD_fake
+
+                cls_loss_real = class_scores_for_loop(embed_real, input_label, F_ha)
+
+                D_cost = criticD_fake - criticD_real + gradient_penalty + real_ins_contras_loss + cls_loss_real
+
+                D_cost.backward()
+                optimizerD.step()
+            ############################
+            # (2) Update G network: optimize WGAN-GP objective, Equation (2)
+            ###########################
+            for p in netD.parameters():  # reset requires_grad
+                p.requires_grad = False  # avoid computation
+            for p in netMap.parameters():  # reset requires_grad
+                p.requires_grad = False
+            for p in F_ha.parameters():  # reset requires_grad
+                p.requires_grad = False
+
+            netG.zero_grad()
             noise_gen.normal_(0, 1)
             fake = netG(noise_gen, input_att)
-            fake_norm = fake.data[0].norm()
-            sparse_fake = fake.data[0].eq(0).sum()
-            criticD_fake = netD(fake.detach(), input_att)
-            criticD_fake = criticD_fake.mean()
 
-            # gradient penalty
-            gradient_penalty = calc_gradient_penalty(netD, input_res, fake.data, input_att)
-            Wasserstein_D = criticD_real - criticD_fake
+            embed_fake, outz_fake = netMap(fake)
 
-            cls_loss_real = class_scores_for_loop(embed_real, input_label, F_ha)
+            criticG_fake = netD(fake, input_att)
+            criticG_fake = criticG_fake.mean()
+            G_cost = -criticG_fake
 
-            D_cost = criticD_fake - criticD_real + gradient_penalty + real_ins_contras_loss + cls_loss_real
+            embed_real, outz_real = netMap(input_res)
 
-            D_cost.backward()
-            optimizerD.step()
-        ############################
-        # (2) Update G network: optimize WGAN-GP objective, Equation (2)
-        ###########################
-        for p in netD.parameters():  # reset requires_grad
-            p.requires_grad = False  # avoid computation
+            all_outz = torch.cat((outz_fake, outz_real.detach()), dim=0)
+
+            fake_ins_contras_loss = contras_criterion(all_outz, torch.cat((input_label, input_label), dim=0))
+
+            cls_loss_fake = class_scores_for_loop(embed_fake, input_label, F_ha)
+
+            errG = G_cost + opt.ins_weight * fake_ins_contras_loss + opt.cls_weight * cls_loss_fake  # + opt.ins_weight * c_errG
+
+            errG.backward()
+            optimizerG.step()
+
+        F_ha.zero_grad()
+        if (epoch + 1) % opt.lr_decay_epoch == 0:
+            for param_group in optimizerD.param_groups:
+                param_group['lr'] = param_group['lr'] * opt.lr_dec_rate
+            for param_group in optimizerG.param_groups:
+                param_group['lr'] = param_group['lr'] * opt.lr_dec_rate
+
+        mean_lossG /= data.ntrain / opt.batch_size
+        mean_lossD /= data.ntrain / opt.batch_size
+        print(
+            '[%d/%d] Loss_D: %.4f Loss_G: %.4f, Wasserstein_dist: %.4f, real_ins_contras_loss:%.4f, fake_ins_contras_loss:%.4f, cls_loss_real: %.4f, cls_loss_fake: %.4f'
+            % (epoch, opt.nepoch, D_cost, G_cost, Wasserstein_D, real_ins_contras_loss, fake_ins_contras_loss, cls_loss_real, cls_loss_fake))
+
+        # evaluate the model, set G to evaluation mode
+        netG.eval()
+
         for p in netMap.parameters():  # reset requires_grad
             p.requires_grad = False
-        for p in F_ha.parameters():  # reset requires_grad
-            p.requires_grad = False
 
-        netG.zero_grad()
-        noise_gen.normal_(0, 1)
-        fake = netG(noise_gen, input_att)
+        if opt.gzsl:  # Generalized zero-shot learning
+            syn_feature, syn_label = generate_syn_feature(netG, data.unseenclasses, data.attribute, opt.syn_num)
+            train_X = torch.cat((data.train_feature, syn_feature), 0)
+            train_Y = torch.cat((data.train_label, syn_label), 0)
 
-        embed_fake, outz_fake = netMap(fake)
+            nclass = opt.nclass_all
+            cls = classifier_embed_contras.CLASSIFIER(train_X, train_Y, netMap, opt.embedSize, data, nclass, opt.cuda,
+                                                    opt.classifier_lr, 0.5, 25, opt.syn_num,
+                                                    True)
+            print('unseen=%.4f, seen=%.4f, h=%.4f' % (cls.acc_unseen, cls.acc_seen, cls.H))
 
-        criticG_fake = netD(fake, input_att)
-        criticG_fake = criticG_fake.mean()
-        G_cost = -criticG_fake
+        else:  # conventional zero-shot learning
+            syn_feature, syn_label = generate_syn_feature(netG, data.unseenclasses, data.attribute, opt.syn_num)
+            cls = classifier_embed_contras.CLASSIFIER(syn_feature, util.map_label(syn_label, data.unseenclasses), netMap,
+                                                    opt.embedSize, data,
+                                                    data.unseenclasses.size(0), opt.cuda, opt.classifier_lr, 0.5, 100,
+                                                    opt.syn_num,
+                                                    False)
+            acc = cls.acc
+            print('unseen class accuracy=%.4f ' % acc)
 
-        embed_real, outz_real = netMap(input_res)
+        if best_gzsl_acc < cls.H:
+            best_acc_seen, best_acc_unseen, best_gzsl_acc = cls.acc_seen, cls.acc_unseen, cls.H
 
-        all_outz = torch.cat((outz_fake, outz_real.detach()), dim=0)
+        #  reset G to training mode
+        netG.train()
+        for p in netMap.parameters():  # reset requires_grad
+            p.requires_grad = True
 
-        fake_ins_contras_loss = contras_criterion(all_outz, torch.cat((input_label, input_label), dim=0))
+    print('the best GZSL seen accuracy is %.4f' % best_acc_seen)
+    print('the best GZSL unseen accuracy is %.4f' % best_acc_unseen)
+    print('the best GZSL H is %.4f' % best_gzsl_acc)
 
-        cls_loss_fake = class_scores_for_loop(embed_fake, input_label, F_ha)
 
-        errG = G_cost + opt.ins_weight * fake_ins_contras_loss + opt.cls_weight * cls_loss_fake  # + opt.ins_weight * c_errG
-
-        errG.backward()
-        optimizerG.step()
-
-    F_ha.zero_grad()
-    if (epoch + 1) % opt.lr_decay_epoch == 0:
-        for param_group in optimizerD.param_groups:
-            param_group['lr'] = param_group['lr'] * opt.lr_dec_rate
-        for param_group in optimizerG.param_groups:
-            param_group['lr'] = param_group['lr'] * opt.lr_dec_rate
-
-    mean_lossG /= data.ntrain / opt.batch_size
-    mean_lossD /= data.ntrain / opt.batch_size
-    print(
-        '[%d/%d] Loss_D: %.4f Loss_G: %.4f, Wasserstein_dist: %.4f, real_ins_contras_loss:%.4f, fake_ins_contras_loss:%.4f, cls_loss_real: %.4f, cls_loss_fake: %.4f'
-        % (epoch, opt.nepoch, D_cost, G_cost, Wasserstein_D, real_ins_contras_loss, fake_ins_contras_loss, cls_loss_real, cls_loss_fake))
-
-    # evaluate the model, set G to evaluation mode
-    netG.eval()
-
-    for p in netMap.parameters():  # reset requires_grad
-        p.requires_grad = False
-
-    if opt.gzsl:  # Generalized zero-shot learning
-        syn_feature, syn_label = generate_syn_feature(netG, data.unseenclasses, data.attribute, opt.syn_num)
-        train_X = torch.cat((data.train_feature, syn_feature), 0)
-        train_Y = torch.cat((data.train_label, syn_label), 0)
-
-        nclass = opt.nclass_all
-        cls = classifier_embed_contras.CLASSIFIER(train_X, train_Y, netMap, opt.embedSize, data, nclass, opt.cuda,
-                                                  opt.classifier_lr, 0.5, 25, opt.syn_num,
-                                                  True)
-        print('unseen=%.4f, seen=%.4f, h=%.4f' % (cls.acc_unseen, cls.acc_seen, cls.H))
-
-    else:  # conventional zero-shot learning
-        syn_feature, syn_label = generate_syn_feature(netG, data.unseenclasses, data.attribute, opt.syn_num)
-        cls = classifier_embed_contras.CLASSIFIER(syn_feature, util.map_label(syn_label, data.unseenclasses), netMap,
-                                                  opt.embedSize, data,
-                                                  data.unseenclasses.size(0), opt.cuda, opt.classifier_lr, 0.5, 100,
-                                                  opt.syn_num,
-                                                  False)
-        acc = cls.acc
-        print('unseen class accuracy=%.4f ' % acc)
-
-    if best_gzsl_acc < cls.H:
-        best_acc_seen, best_acc_unseen, best_gzsl_acc = cls.acc_seen, cls.acc_unseen, cls.H
-
-    #  reset G to training mode
-    netG.train()
-    for p in netMap.parameters():  # reset requires_grad
-        p.requires_grad = True
-
-print('the best GZSL seen accuracy is %.4f' % best_acc_seen)
-print('the best GZSL unseen accuracy is %.4f' % best_acc_unseen)
-print('the best GZSL H is %.4f' % best_gzsl_acc)
+if __name__ == "__main__":
+    torch.backends.cudnn.deterministic = True
+    # log = config.__dict__
+    # time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    # log.update({'time': time})
+    # if not os.path.isdir(config.tensorboard_dir):
+    #     os.mkdir(config.tensorboard_dir)
+    # write_json(log, os.path.join(config.tensorboard_dir+"/config_7384_AWA2.json"))
+    # for _ in range(30):
+    for i in range(5):
+        opt.ins_temp += 2.0
+        for j in range(5):
+            opt.cls_temp += 0.2
+            train()

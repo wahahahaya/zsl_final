@@ -2,6 +2,7 @@ from datetime import datetime
 import os
 import numpy as np
 import random
+from regex import W
 import torch
 import torch.nn as nn
 import torch.distributed as dist
@@ -36,8 +37,8 @@ def synchronize():
 def main(config):
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    # seed = random.randint(1, 10000)
-    seed = 7384
+    seed = random.randint(1, 10000)
+    # seed = 7384
     print("Random Seed: ", seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
@@ -78,7 +79,7 @@ def main(config):
         reg_loss_epoch = []
         cpt_loss_epoch = []
 
-        for i, (img, att, label) in enumerate(train_dataloader):
+        for i, (img, att, label, feature) in enumerate(train_dataloader):
             batch_img = img.to(device)
             batch_att = att.to(device)
             batch_label = label.to(device)
@@ -89,8 +90,8 @@ def main(config):
             Lreg = loss_reg(atten_attr, batch_att)
             Lcpt = loss_cpt(atten_map)
 
-            loss = Lcls + config.lamd1*Lreg + config.lamd3*Lcpt
-            # loss = Lcls
+            loss = Lcls + config.lamd3*Lcpt + config.lamd1*Lreg
+            # loss = Lcls + config.lamd1*Lreg
 
             optimizer.zero_grad()
             with amp.scale_loss(loss, optimizer) as scaled_losses:
@@ -139,22 +140,36 @@ def main(config):
             best_acc_seen = acc_seen
             best_acc_unseen = acc_unseen
             best_H = H
-            # torch.save(model.state_dict(), "log/model/AWA2_%d_%d_%d.pth" % (best_H*1000, best_epoch, seed))
+            # torch.save(model.state_dict(), "log/model/SUN_%d_%d.pth" % (best_H*1000, best_epoch))
             # print("save model")
 
     print("best: ep: %d" % best_epoch)
-    print('train: %.4f, gzsl: seen=%.4f, unseen=%.4f, h=%.4f' % (best_acc_train, best_acc_seen, best_acc_unseen, best_H))
+    print('train: %.4f, gzsl: unseen=%.4f, seen=%.4f, h=%.4f' % (best_acc_train, best_acc_unseen, best_acc_seen, best_H))
+    f = open('AWA2.txt', 'a')
+    f.write('{}\n'.format(best_epoch))
+    f.write('seed:{}\n'.format(seed))
+    f.write('U:{}\t'.format(best_acc_unseen))
+    f.write('S:{}\t'.format(best_acc_seen))
+    f.write('H:{}\n\n'.format(best_H))
     print("################################")
 
 
 if __name__ == "__main__":
     torch.backends.cudnn.deterministic = True
     config = parameter.get_parameters()
+    # way = [4, 8, 12]
+    # shot = [2, 3, 4]
+    # for w in way:
+    #     for s in shot:
+    #         config.ways = w
+    #         config.shots = s
+    #         main(config)
+    #         torch.cuda.empty_cache()
     # log = config.__dict__
     # time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     # log.update({'time': time})
     # if not os.path.isdir(config.tensorboard_dir):
     #     os.mkdir(config.tensorboard_dir)
     # write_json(log, os.path.join(config.tensorboard_dir+"/config_7384_AWA2.json"))
-    # for _ in range(30):
-    main(config)
+    for _ in range(20):
+        main(config)

@@ -12,7 +12,7 @@ def get_parameters():
 
     # Data
     parser.add_argument("--train_mode", type=str, default="episode")
-    parser.add_argument("--dataset_name", type=str, default='SUN')
+    parser.add_argument("--dataset_name", type=str, default='AWA2')
     parser.add_argument("--ways", type=int, default=4)
     parser.add_argument("--shots", type=int, default=2)
     parser.add_argument("--n_batch", type=int, default=300)
@@ -22,7 +22,7 @@ def get_parameters():
     parser.add_argument("--test_aug", type=str, default='resize_crop')
 
     # Test
-    parser.add_argument("--test_gamma", type=float, default=0.7)
+    parser.add_argument("--test_gamma", type=float, default=3.3)
 
     # Loss
     parser.add_argument("--lamd1", type=float, default=1.0)

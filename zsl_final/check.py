@@ -44,8 +44,9 @@ def main(config):
     np.random.seed(seed)
     random.seed(seed)
 
+    print(config.test_gamma)
+
     train_dataloader, test_seen_dataloader, test_unseen_dataloader, res = build_data.build_dataloader(config)
-    att_seen = res['att_seen'].to(device)
     res101 = resnet101_features(pretrained=True)
 
     w2v_file = config.dataset_name+"_attribute.pkl"
@@ -54,8 +55,8 @@ def main(config):
         w2v = pickle.load(f)
     w2v = torch.from_numpy(w2v).float().to(device)
     model = build_model.DSACA_Net(res101, w2v).to(device)
-    model.load_state_dict(torch.load("/HDD-1_data/arlen/zsl_final/log/model/SUN_348_24_7384.pth"))
-
+    model.load_state_dict(torch.load("/HDD-1_data/arlen/zsl_final/log/model/AWA2_722_17.pth"))
+    
     acc_train, acc_seen, acc_unseen, H = eval_gzsl(
         train_dataloader,
         test_seen_dataloader,
@@ -69,6 +70,7 @@ def main(config):
     print('train: %.4f, gzsl: seen=%.4f, unseen=%.4f, h=%.4f' % (acc_train, acc_seen, acc_unseen, H))
 
 
+
 if __name__ == "__main__":
     torch.backends.cudnn.deterministic = True
     config = parameter.get_parameters()
@@ -78,5 +80,4 @@ if __name__ == "__main__":
     # if not os.path.isdir(config.tensorboard_dir):
     #     os.mkdir(config.tensorboard_dir)
     # write_json(log, os.path.join(config.tensorboard_dir+"/config_7384_AWA2.json"))
-    # for _ in range(30):
     main(config)

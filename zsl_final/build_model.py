@@ -66,6 +66,15 @@ class DSACA_Net(nn.Module):
 
         return score
 
+    def base_module_dot(self, x, seen_att):
+        gs_feat = x@self.V
+
+        cos_dist = gs_feat @ seen_att.T
+        score = cos_dist * self.scale
+        # score = self.LinearV(global_feat)
+
+        return score
+
     def DSACA(self, img_feature):
         text = self.w2v_att
 
@@ -115,10 +124,14 @@ class DSACA_Net(nn.Module):
 
         if mode == "demo":
             score = self.base_module(demo_feat, seen_att)
-            return score, global_feat
+            return score
 
         score = self.base_module(global_feat, seen_att)  # [B, att_size]
         if mode == "test":
+            return score
+
+        if mode == "dot":
+            score = self.base_module_dot(global_feat, seen_att)
             return score
 
         part_feat, atten_map, atten_attr, query = self.DSACA(feat)

@@ -8,22 +8,22 @@ python CE_GZSL.py --dataset CUB --class_embedding sent --syn_num 300 --batch_siz
 
 AWA2:
 ```
-python CE_GZSL.py --dataset AWA2 --class_embedding att --syn_num 2400 --batch_size 4096 --attSize 85 --nz 85 --embedSize 2048 --outzSize 512 --nhF 2048 --ins_weight 0.001 --cls_weight 0.001 --ins_temp 10.0 --cls_temp 1.0 --manualSeed 9182 --nclass_all 50 --nclass_seen 40 --lr_decay_epoch 10 --nepoch 130
+python CE_GZSL.py --dataset AWA2 --class_embedding att --syn_num 2400 --batch_size 8192 --attSize 85 --nz 85 --embedSize 2048 --outzSize 512 --nhF 2048 --ins_weight 0.001 --cls_weight 0.02 --ins_temp 10.0 --cls_temp 1.0 --manualSeed 2711 --nclass_all 50 --nclass_seen 40 --lr_decay_epoch 10 --nepoch 300 --lr 1e-4
 ```
 
 AWA2:
 ```
-python CE_GZSL.py --dataset AWA2 --class_embedding att --syn_num 500 --batch_size 4096 --attSize 85 --nz 85 --embedSize 2048 --outzSize 512 --nhF 2048 --ins_weight 0.001 --cls_weight 0.001 --ins_temp 10.0 --cls_temp 1.0 --manualSeed 9182 --nclass_all 50 --nclass_seen 40 --lr_decay_epoch 10 --nepoch 130
+python CE_GZSL.py --dataset AWA2 --class_embedding att --syn_num 2400 --batch_size 8192 --attSize 85 --nz 85 --embedSize 2048 --outzSize 512 --nhF 2048 --ins_weight 0.001 --cls_weight 0.002 --ins_temp 10.0 --cls_temp 1.0 --manualSeed 5497 --nclass_all 50 --nclass_seen 40 --lr_decay_epoch 10 --nepoch 300 --lr 1e-4
 ```
 
 AWA2:
 ```
-python CE_GZSL.py --dataset AWA2 --class_embedding att --syn_num 800 --batch_size 4096 --attSize 85 --nz 85 --embedSize 2048 --outzSize 512 --nhF 2048 --ins_weight 0.001 --cls_weight 0.001 --ins_temp 10.0 --cls_temp 1.0 --manualSeed 9182 --nclass_all 50 --nclass_seen 40 --lr_decay_epoch 10 --nepoch 130
+python CE_GZSL.py --dataset AWA2 --class_embedding att --syn_num 2400 --batch_size 8192 --attSize 85 --nz 85 --embedSize 2048 --outzSize 512 --nhF 2048 --ins_weight 0.001 --cls_weight 0.002 --ins_temp 10.0 --cls_temp 1.0 --manualSeed 9182 --nclass_all 50 --nclass_seen 40 --lr_decay_epoch 10 --nepoch 300 --lr 1e-4
 ```
 
 AWA2:
 ```
-python CE_GZSL.py --dataset AWA2 --class_embedding att --syn_num 3000 --batch_size 4096 --attSize 85 --nz 85 --embedSize 2048 --outzSize 512 --nhF 2048 --ins_weight 0.001 --cls_weight 0.001 --ins_temp 10.0 --cls_temp 1.0 --manualSeed 9182 --nclass_all 50 --nclass_seen 40 --lr_decay_epoch 10 --nepoch 130
+python CE_GZSL.py --dataset AWA2 --class_embedding att --syn_num 2400 --batch_size 8192 --attSize 85 --nz 85 --embedSize 2048 --outzSize 512 --nhF 2048 --ins_weight 0.001 --cls_weight 0.002 --ins_temp 20.0 --cls_temp 2.0 --manualSeed 9182 --nclass_all 50 --nclass_seen 40 --lr_decay_epoch 10 --nepoch 300 --lr 1e-4
 ```
 
 

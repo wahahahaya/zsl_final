@@ -66,7 +66,7 @@ print(opt)
 
 os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpus
 
-if opt.manualSeed is None:
+if opt.manualSeed == 0:
     opt.manualSeed = random.randint(1, 10000)
 print("Random Seed: ", opt.manualSeed)
 random.seed(opt.manualSeed)

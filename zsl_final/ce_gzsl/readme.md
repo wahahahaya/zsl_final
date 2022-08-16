@@ -16,7 +16,7 @@ AWA2 with H=68.4:
 python CE_GZSL.py --dataset AWA2 --class_embedding att --syn_num 2400 --batch_size 4096 --attSize 85 --nz 85 --embedSize 2048 --outzSize 512 --nhF 2048 --ins_weight 0.001 --cls_weight 0.001 --cls_temp 1.0 --ins_temp 10.0 --manualSeed 9182 --lr_decay_epoch 10 --nclass_all 50 --nclass_seen 40 --lr 1e-4 --nepoch 130
 ```
 
-###############
+###############  
 AWA2 with seed 9182 nepoch 200:
 ```
 python CE_GZSL.py --dataset AWA2 --class_embedding att --syn_num 2400 --batch_size 4096 --attSize 85 --nz 85 --embedSize 2048 --outzSize 512 --nhF 2048 --ins_weight 0.001 --cls_weight 0.001 --cls_temp 1.0 --ins_temp 10.0 --manualSeed 9182 --lr_decay_epoch 10 --nclass_all 50 --nclass_seen 40 --lr 1e-4 --nepoch 200

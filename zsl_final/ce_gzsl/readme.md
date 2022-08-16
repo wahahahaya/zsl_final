@@ -27,6 +27,7 @@ python CE_GZSL.py
 --nclass_all 50
 --nclass_seen 40
 --lr 1e-4
+--nepoch 130
 ```
 
 

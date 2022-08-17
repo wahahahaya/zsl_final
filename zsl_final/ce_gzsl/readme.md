@@ -17,53 +17,57 @@ python CE_GZSL.py --dataset AWA2 --class_embedding att --syn_num 2400 --batch_si
 ```
 
 ###############  
-AWA2 with seed 9182 nepoch 200:
-```
-python CE_GZSL.py --dataset AWA2 --class_embedding att --syn_num 2400 --batch_size 4096 --attSize 85 --nz 85 --embedSize 2048 --outzSize 512 --nhF 2048 --ins_weight 0.001 --cls_weight 0.001 --cls_temp 1.0 --ins_temp 10.0 --manualSeed 9182 --lr_decay_epoch 10 --nclass_all 50 --nclass_seen 40 --lr 1e-4 --nepoch 200
-```
-
-AWA2 with seed 9182 ins_temp 1.0:
-```
-python CE_GZSL.py --dataset AWA2 --class_embedding att --syn_num 2400 --batch_size 4096 --attSize 85 --nz 85 --embedSize 2048 --outzSize 512 --nhF 2048 --ins_weight 0.001 --cls_weight 0.001 --cls_temp 1.0 --ins_temp 1.0 --manualSeed 9182 --lr_decay_epoch 10 --nclass_all 50 --nclass_seen 40 --lr 1e-4 --nepoch 200
-```
-
-AWA2 with seed 9182 ins_temp 5.0:
-```
-python CE_GZSL.py --dataset AWA2 --class_embedding att --syn_num 2400 --batch_size 4096 --attSize 85 --nz 85 --embedSize 2048 --outzSize 512 --nhF 2048 --ins_weight 0.001 --cls_weight 0.001 --cls_temp 1.0 --ins_temp 5.0 --manualSeed 9182 --lr_decay_epoch 10 --nclass_all 50 --nclass_seen 40 --lr 1e-4 --nepoch 200
-```
-
-AWA2 with seed 9182 ins_temp 15.0:
-```
-python CE_GZSL.py --dataset AWA2 --class_embedding att --syn_num 2400 --batch_size 4096 --attSize 85 --nz 85 --embedSize 2048 --outzSize 512 --nhF 2048 --ins_weight 0.001 --cls_weight 0.001 --cls_temp 1.0 --ins_temp 15.0 --manualSeed 9182 --lr_decay_epoch 10 --nclass_all 50 --nclass_seen 40 --lr 1e-4 --nepoch 200
-```
-
-AWA2 with seed 9182 batch 6144:
-```
-python CE_GZSL.py --dataset AWA2 --class_embedding att --syn_num 2400 --batch_size 6144 --attSize 85 --nz 85 --embedSize 2048 --outzSize 512 --nhF 2048 --ins_weight 0.001 --cls_weight 0.001 --cls_temp 1.0 --ins_temp 10.0 --manualSeed 9182 --lr_decay_epoch 10 --nclass_all 50 --nclass_seen 40 --lr 1e-4 --nepoch 200
-```
-
-AWA2 with seed 9182 batch 8192:
-```
-python CE_GZSL.py --dataset AWA2 --class_embedding att --syn_num 2400 --batch_size 8192 --attSize 85 --nz 85 --embedSize 2048 --outzSize 512 --nhF 2048 --ins_weight 0.001 --cls_weight 0.001 --cls_temp 1.0 --ins_temp 10.0 --manualSeed 9182 --lr_decay_epoch 10 --nclass_all 50 --nclass_seen 40 --lr 1e-4 --nepoch 200
-```
-
-AWA2 random seed:
+AWA2 with randomseed:
 ```
 python CE_GZSL.py --dataset AWA2 --class_embedding att --syn_num 2400 --batch_size 4096 --attSize 85 --nz 85 --embedSize 2048 --outzSize 512 --nhF 2048 --ins_weight 0.001 --cls_weight 0.001 --cls_temp 1.0 --ins_temp 10.0 --manualSeed 0 --lr_decay_epoch 10 --nclass_all 50 --nclass_seen 40 --lr 1e-4 --nepoch 200
 ```
 
-AWA2 random seed:
+AWA2 with randomseed:
 ```
 python CE_GZSL.py --dataset AWA2 --class_embedding att --syn_num 2400 --batch_size 4096 --attSize 85 --nz 85 --embedSize 2048 --outzSize 512 --nhF 2048 --ins_weight 0.001 --cls_weight 0.001 --cls_temp 1.0 --ins_temp 10.0 --manualSeed 0 --lr_decay_epoch 10 --nclass_all 50 --nclass_seen 40 --lr 1e-4 --nepoch 200
 ```
 
-AWA2 random seed:
+AWA2 with randomseed:
 ```
 python CE_GZSL.py --dataset AWA2 --class_embedding att --syn_num 2400 --batch_size 4096 --attSize 85 --nz 85 --embedSize 2048 --outzSize 512 --nhF 2048 --ins_weight 0.001 --cls_weight 0.001 --cls_temp 1.0 --ins_temp 10.0 --manualSeed 0 --lr_decay_epoch 10 --nclass_all 50 --nclass_seen 40 --lr 1e-4 --nepoch 200
 ```
 
-AWA2 random seed:
+AWA2 with randomseed:
 ```
 python CE_GZSL.py --dataset AWA2 --class_embedding att --syn_num 2400 --batch_size 4096 --attSize 85 --nz 85 --embedSize 2048 --outzSize 512 --nhF 2048 --ins_weight 0.001 --cls_weight 0.001 --cls_temp 1.0 --ins_temp 10.0 --manualSeed 0 --lr_decay_epoch 10 --nclass_all 50 --nclass_seen 40 --lr 1e-4 --nepoch 200
 ```
 
+AWA2 with seed 9182 syn_num 1000:
+```
+python CE_GZSL.py --dataset AWA2 --class_embedding att --syn_num 1000 --batch_size 4096 --attSize 85 --nz 85 --embedSize 2048 --outzSize 512 --nhF 2048 --ins_weight 0.001 --cls_weight 0.001 --cls_temp 1.0 --ins_temp 10.0 --manualSeed 9182 --lr_decay_epoch 10 --nclass_all 50 --nclass_seen 40 --lr 1e-4 --nepoch 200
+```
+
+AWA2 with seed 9182 syn_num 3000:
+```
+python CE_GZSL.py --dataset AWA2 --class_embedding att --syn_num 3000 --batch_size 4096 --attSize 85 --nz 85 --embedSize 2048 --outzSize 512 --nhF 2048 --ins_weight 0.001 --cls_weight 0.001 --cls_temp 1.0 --ins_temp 10.0 --manualSeed 9182 --lr_decay_epoch 10 --nclass_all 50 --nclass_seen 40 --lr 1e-4 --nepoch 200
+```
+
+AWA2 with seed 9182 syn_num 2000:
+```
+python CE_GZSL.py --dataset AWA2 --class_embedding att --syn_num 2000 --batch_size 4096 --attSize 85 --nz 85 --embedSize 2048 --outzSize 512 --nhF 2048 --ins_weight 0.001 --cls_weight 0.001 --cls_temp 1.0 --ins_temp 10.0 --manualSeed 0 --lr_decay_epoch 10 --nclass_all 50 --nclass_seen 40 --lr 1e-4 --nepoch 200
+```
+
+AWA2 with seed 9182 cls_temp 2.0:
+```
+python CE_GZSL.py --dataset AWA2 --class_embedding att --syn_num 2400 --batch_size 4096 --attSize 85 --nz 85 --embedSize 2048 --outzSize 512 --nhF 2048 --ins_weight 0.001 --cls_weight 0.001 --cls_temp 2.0 --ins_temp 10.0 --manualSeed 0 --lr_decay_epoch 10 --nclass_all 50 --nclass_seen 40 --lr 1e-4 --nepoch 200
+```
+
+AWA2 with seed 9182 cls_temp 3.0:
+```
+python CE_GZSL.py --dataset AWA2 --class_embedding att --syn_num 2400 --batch_size 4096 --attSize 85 --nz 85 --embedSize 2048 --outzSize 512 --nhF 2048 --ins_weight 0.001 --cls_weight 0.001 --cls_temp 3.0 --ins_temp 10.0 --manualSeed 0 --lr_decay_epoch 10 --nclass_all 50 --nclass_seen 40 --lr 1e-4 --nepoch 200
+```
+
+AWA2 with seed 9182 cls_temp 0.1:
+```
+python CE_GZSL.py --dataset AWA2 --class_embedding att --syn_num 2400 --batch_size 4096 --attSize 85 --nz 85 --embedSize 2048 --outzSize 512 --nhF 2048 --ins_weight 0.001 --cls_weight 0.001 --cls_temp 0.1 --ins_temp 10.0 --manualSeed 0 --lr_decay_epoch 10 --nclass_all 50 --nclass_seen 40 --lr 1e-4 --nepoch 200
+```
+
+AWA2 with seed 9182 cls_temp 0.5:
+```
+python CE_GZSL.py --dataset AWA2 --class_embedding att --syn_num 2400 --batch_size 4096 --attSize 85 --nz 85 --embedSize 2048 --outzSize 512 --nhF 2048 --ins_weight 0.001 --cls_weight 0.001 --cls_temp 0.5 --ins_temp 10.0 --manualSeed 0 --lr_decay_epoch 10 --nclass_all 50 --nclass_seen 40 --lr 1e-4 --nepoch 200
+```

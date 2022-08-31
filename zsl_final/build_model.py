@@ -42,7 +42,7 @@ class DSACA_Net(nn.Module):
 
         # util
         self.softmax = nn.Softmax(dim=-1)
-        self.feat2attri = nn.Parameter(nn.init.normal_(torch.empty(2048, self.attritube_num)), requires_grad=True)
+        self.W = nn.Parameter(nn.init.normal_(torch.empty(300, 2048)), requires_grad=True)  # 300 * 2048
 
     def conv_features(self, x):
         '''
@@ -74,6 +74,41 @@ class DSACA_Net(nn.Module):
         # score = self.LinearV(global_feat)
 
         return score
+
+    def MFB(self, img_feature):
+        text = self.w2v_att
+        B, C, W, H = img_feature.shape
+
+        # co-attention
+        img_L = self.relu(self.img2L(img_feature)).view(B, 256, W*H)  # [B, 256, 196]
+        text_L = self.relu(self.text2L(text)).T  # [256, 312]
+
+        mfb_R = torch.einsum("tl,bln->btn", self.UU.T, img_L)  # [B, 312, 196]
+        mfb_Q = self.VV.T@text_L  # [196, 312]
+        mfb_F = (mfb_R*mfb_Q.T)  # [B, 312, 196]
+        atten_map = F.softmax(mfb_F, -1).view(B, self.attritube_num, W, H)  # [B, 312, 14, 14]
+
+        attention = F.avg_pool2d(mfb_F.view(B, self.attritube_num, W, H), kernel_size=(W, H)).view(B, -1)  # [B, 312]
+        atten_attr = self.atten2attri(attention)
+        part_feat = mfb_F
+
+        return part_feat, atten_map, atten_attr
+
+    def No(self, img_feature):
+        text = self.w2v_att
+        B, C, W, H = img_feature.shape
+
+        # co-attention
+        img_2048 = img_feature.view(B, 2048, W*H)  # [B, 2048, 196]
+        text_2048 = torch.einsum('lw,wv->lv', text, self.W)  # [312, 2048]
+
+        att_gs = torch.einsum("tl,bln->btn", text_2048, img_2048)
+        atten_map = F.softmax(att_gs, -1).view(B, self.attritube_num, W, H)  # [B, 312, 14, 14]
+
+        atten_attr = F.max_pool2d(atten_map.view(B, self.attritube_num, W, H), kernel_size=(W, H)).view(B, -1)  # [B, 312]
+        part_feat = F.normalize(att_gs, dim=-1)
+
+        return part_feat, atten_map, atten_attr
 
     def DSACA(self, img_feature):
         text = self.w2v_att
@@ -116,6 +151,8 @@ class DSACA_Net(nn.Module):
 
     def forward(self, x, demo_feat=None, seen_att=None, mode="train"):
         feat = self.conv_features(x)  # [B, 2048, 14, 14]
+        if mode == "ae":
+            return feat
         N, C, W, H = feat.shape
         global_feat = F.avg_pool2d(feat, kernel_size=(W, H))
         global_feat = global_feat.view(N, C)
@@ -126,14 +163,23 @@ class DSACA_Net(nn.Module):
             score = self.base_module(demo_feat, seen_att)
             return score
 
-        score = self.base_module(global_feat, seen_att)  # [B, att_size]
         if mode == "test":
+            score = self.base_module(global_feat, seen_att)  # [B, att_size]
             return score
 
         if mode == "dot":
             score = self.base_module_dot(global_feat, seen_att)
             return score
 
+        score = self.base_module(global_feat, seen_att)
+        if mode == "MFB":
+            part_feat, atten_map, atten_attr = self.MFB(feat)
+            return score, global_feat, part_feat, atten_map, atten_attr
+
+        if mode == "No":
+            part_feat, atten_map, atten_attr = self.No(feat)
+            return score, global_feat, part_feat, atten_map, atten_attr
+
         part_feat, atten_map, atten_attr, query = self.DSACA(feat)
 
-        return score, global_feat, part_feat, atten_map, atten_attr, query
+        return score, global_feat, part_feat, atten_map, atten_attr

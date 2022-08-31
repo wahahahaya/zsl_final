@@ -56,7 +56,7 @@ def main(config):
     w2v = torch.from_numpy(w2v).float().to(device)
     model = build_model.DSACA_Net(res101, w2v).to(device)
     model.load_state_dict(torch.load("/HDD-1_data/arlen/zsl_final/log/model/AWA2_722_17.pth"))
-    
+
     acc_train, acc_seen, acc_unseen, H = eval_gzsl(
         train_dataloader,
         test_seen_dataloader,
@@ -68,7 +68,6 @@ def main(config):
     )
 
     print('train: %.4f, gzsl: seen=%.4f, unseen=%.4f, h=%.4f' % (acc_train, acc_seen, acc_unseen, H))
-
 
 
 if __name__ == "__main__":

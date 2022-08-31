@@ -11,7 +11,7 @@ def cal_accuracy(model, dataloader, att, test_id, device, bias=None):
     for iteration, (img, attri, label, feature) in enumerate(dataloader):
         img = img.to(device)
         feature = feature.to(device)
-        score = model(x=img, demo_feat=feature, seen_att=att, mode="dot")
+        score = model(x=img, demo_feat=feature, seen_att=att, mode="test")
         scores.append(score)
         labels.append(label)
 

@@ -37,8 +37,8 @@ def synchronize():
 def main(config):
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    seed = random.randint(1, 10000)
-    # seed = 7384
+    # seed = random.randint(1, 10000)
+    seed = 7384
     print("Random Seed: ", seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
@@ -72,6 +72,7 @@ def main(config):
     reg_losses = []
     cpt_losses = []
     best_H = 0
+    mode = "No"
 
     for epoch in range(0, config.epochs):
         loss_epoch = []
@@ -84,14 +85,15 @@ def main(config):
             batch_att = att.to(device)
             batch_label = label.to(device)
 
-            score, global_feat, part_feat, atten_map, atten_attr, query = model(batch_img, seen_att=att_seen, mode="train")
+            # score, global_feat, part_feat, atten_map, atten_attr, query = model(batch_img, seen_att=att_seen, mode=mode)
+            score, global_feat, part_feat, atten_map, atten_attr = model(batch_img, seen_att=att_seen, mode=mode)
 
             Lcls = loss_cls(score, batch_label)
             Lreg = loss_reg(atten_attr, batch_att)
             Lcpt = loss_cpt(atten_map)
 
+            # loss = Lcls + config.lamd3*Lcpt + config.lamd1*Lreg
             loss = Lcls + config.lamd3*Lcpt + config.lamd1*Lreg
-            # loss = Lcls + config.lamd1*Lreg
 
             optimizer.zero_grad()
             with amp.scale_loss(loss, optimizer) as scaled_losses:
@@ -145,9 +147,10 @@ def main(config):
 
     print("best: ep: %d" % best_epoch)
     print('train: %.4f, gzsl: unseen=%.4f, seen=%.4f, h=%.4f' % (best_acc_train, best_acc_unseen, best_acc_seen, best_H))
-    f = open('AWA2.txt', 'a')
+    f = open('MFB.txt', 'a')
+    f.write('{}\n'.format(config.dataset_name))
     f.write('{}\n'.format(best_epoch))
-    f.write('seed:{}\n'.format(seed))
+    f.write('mode:{}\n'.format(mode))
     f.write('U:{}\t'.format(best_acc_unseen))
     f.write('S:{}\t'.format(best_acc_seen))
     f.write('H:{}\n\n'.format(best_H))
@@ -171,5 +174,4 @@ if __name__ == "__main__":
     # if not os.path.isdir(config.tensorboard_dir):
     #     os.mkdir(config.tensorboard_dir)
     # write_json(log, os.path.join(config.tensorboard_dir+"/config_7384_AWA2.json"))
-    for _ in range(20):
-        main(config)
+    main(config)
